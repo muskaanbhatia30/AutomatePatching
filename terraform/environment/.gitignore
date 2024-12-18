@@ -1,0 +1,7 @@
+# Local directories used by Terraform
+.terraform/
+
+# terraform local file
+.terraform.lock.hcl
+nonprod.tfvars
+provider.tf
