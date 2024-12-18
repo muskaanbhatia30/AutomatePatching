@@ -1,0 +1,8 @@
+# using dynamic inventory to fetch the running instance in the particular resource group
+plugin: azure.azcollection.azure_rm
+auth_source: auto
+include_vm_resource_groups:
+  - patchserver
+resources:
+  vm:
+    - "*"

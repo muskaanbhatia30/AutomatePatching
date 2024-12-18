@@ -1,0 +1,166 @@
+---
+- name: Ping all VMs in Azure
+  hosts: all  # This will use the hosts from the dynamic inventory
+  become: true
+  become_user: root
+  gather_facts: true # No need to gather facts for ping
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_private_key_file: "/home/alok/ansible/vmkey.pem"  # Path to your private SSH key in Cloud Shell
+    ansible_user:  "adminuser"
+  tasks:
+    - name: Ping the VM
+      ping:
+
+    - name: Get all virtual machines
+      azure.azcollection.azure_rm_virtualmachine_info:
+        resource_group: "patchserver"
+      register: vm_info
+
+    - name: Create snapshots of OS disks
+      azure.azcollection.azure_rm_snapshot:
+        resource_group: "your_resource_group_name"
+        name: "{{ item.name }}-snapshot"
+        create_option: Copy
+        source_uri: "{{ item.os_disk.vhd.uri }}"
+      loop: "{{ vm_info.virtual_machines }}
+
+    - name: Gather OS-related evidence and pre-checks
+      shell: |
+        echo " === Evidence and Pre-checks ===" > /tmp/server_report.txt
+        
+
+        # Collect OS-related evidence
+        echo " ## OS Version:" >> /tmp/server_report.txt
+        cat /etc/os-release >> /tmp/server_report.txt
+        echo " ## Kernel Version:" >> /tmp/server_report.txt
+        uname -r >> /tmp/server_report.txt
+        echo " ## fstab:" >> /tmp/server_report.txt
+        cat /etc/fstab >> /tmp/server_report.txt
+        echo " ## Disk Usage:" >> /tmp/server_report.txt
+        df -Th >> /tmp/server_report.txt
+        echo " ## sudoers file:" >> /tmp/server_report.txt
+        cat /etc/sudoers >> /tmp/server_report.txt
+        echo " ## Physical Volume Information:" >> /tmp/server_report.txt
+        pvs >> /tmp/server_report.txt
+        echo " ## Volume Group Information:" >> /tmp/server_report.txt
+        vgs >> /tmp/server_report.txt
+        echo " ## Logical Volume Information:" >> /tmp/server_report.txt
+        lvs >> /tmp/server_report.txt
+        echo " ## Network Routing Table:" >> /tmp/server_report.txt
+        netstat -nr >> /tmp/server_report.txt
+        echo " ## Network Interfaces:" >> /tmp/server_report.txt
+        ifconfig >> /tmp/server_report.txt
+
+
+        # Collect pre-checks
+        echo "  === Pre-checks ===" >> /tmp/server_report.txt
+        
+        # For Ubuntu/Debian: List upgradable packages
+    - name: collect pre checks for ubuntu /debain
+      shell: |
+        echo "## Upgradable Packages for Ubuntu/Debian:" >> /tmp/server_report.txt
+        apt list --upgradable >> /tmp/server_report.txt
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Collect pre-checks for RHEL/CentOS/Fedora
+      shell: |
+        echo "## Security Updates for RHEL/CentOS/Fedora:" >> /tmp/server_report.txt
+        yum check-update --security >> /tmp/server_report.txt
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Collect evidence and pre-checks output on local machine
+      fetch:
+        src: /tmp/server_report.txt
+        dest: ./server_report_{{ inventory_hostname }}.txt
+        flat: yes
+
+    - name: Patching for ubuntu servers
+      block:
+         - name :  update pacakge cache
+           apt:
+             update_cache: yes
+    
+         - name: List upgradable packages
+           shell: apt list --upgradable
+           register: upgradable_packages
+
+         - name: display upgradable packages
+           debug:
+            var: upgradable_packages.stdout
+
+         - name: upgrade all the packages
+           apt:
+            upgrade: dist
+            state: latest
+
+         - name: Reboot the server
+           reboot:
+             reboot_timeout: 300
+    
+         - name: check date and uptime
+           shell: date && uptime
+           register: date_uptime_output
+
+         - name: display date and time
+           debug:
+             var: date_uptime_output.stdout
+
+         - name: check disk usage
+           command: df -Th
+           register: disk_output
+
+         - name: display disk usage
+           debug:
+              var: disk_output.stdout
+      when : ansible_facts['os_family']== "Debian"
+
+      rescue:
+         - name: error msg display
+           debug:
+             msg: "above ubuntu task failed during execution"
+
+
+    - name: Patching for Redhat servers
+      block:
+         - name :  check for security updates
+           yum:
+             list: updates
+             security: yes
+    
+         - name: apply security updates
+           yum:
+              name: "*"
+              state: latest
+              security: yes
+
+         - name: Reboot the server
+           reboot:
+             reboot_timeout: 300
+    
+         - name: check date and uptime
+           shell: date && uptime
+           register: date_uptime_output
+
+         - name: display date and time
+           debug:
+             var: date_uptime_output.stdout
+
+         - name: check disk usage
+           command: df -Th
+           register: disk_output
+
+         - name: display disk usage
+           debug:
+              var: disk_output.stdout
+      when : ansible_facts['os_family']== "RedHat"
+
+      rescue:
+         - name: error msg display
+           debug:
+             msg: "redhat task failed during execution"
+    
+    
+    
+        
+   
