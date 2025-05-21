@@ -5,10 +5,10 @@
 This project automates patch management on Azure VMs by creating snapshots of OS disks  and pre-checks, evidence of the servers using Ansible before patching. The infrastructure is provisioned using Terraform.
 
 **Features**
-=> Terraform: Automates the provisioning of Azure VMs, storage accounts, and network configurations
+* Terraform: Automates the provisioning of Azure VMs, storage accounts, and network configurations
 and use the remote state file management for state file
-=> Ansible: Provides playbooks to automate the pre-patch snapshot creation of VM disks.
-=> Patching: Integrates Ansible to schedule and apply OS patches across all VMs.
+* Ansible: Provides playbooks to automate the pre-patch snapshot creation of VM disks.
+* Patching: Integrates Ansible to schedule and apply OS patches across all VMs.
 
 **Prerequisites**
 
